@@ -1,0 +1,158 @@
+## Program to download ICAL file & access dates for future events, b ased on a given date
+## The program reads each line of data & creates a list of dictionaries containing the data of each event
+## The program then compares the event date to produce a new list of future event dates,
+## calculates the next date & find all event entries with a corresponding date
+
+import urllib.request
+file = urllib.request.urlopen('http://s3-eu-west-1.amazonaws.com/fs-downloads/GM/binfeed.ical')
+
+# Convert a given date into a number representation
+# which can be evaluated against other dates in the same format
+
+def convertToDateNumber(date):
+    
+    dateValues = date.split('/') # Split into day, month and year
+
+    # Reverse the order of the values to allow min/max comparisons
+
+    dateNumStr = dateValues[2] + dateValues[1] + dateValues[0] 
+
+    dateNum = int(dateNumStr)
+
+    return dateNum
+    
+
+# Take an ICAL file as a parameter & break up into seperate events,
+# storing each as a dictionary in a list
+
+def createEventList(data):
+
+    index = 0
+    eventList = []
+    
+    while data.readline():
+
+        for line in data:
+            
+            if "BEGIN:VEVENT" in str(line):
+                
+                eventList.insert(index,{"id":0, "date":0, "date_stamp":0})  # Initialize list position & keys for each dictionary             
+                
+                
+            if 'UID' in str(line):
+                    uid = str(line).partition(':')[2].partition('\\')[0]
+                    eventList[index]["id"] = uid
+                    
+
+            elif 'DTSTART' in str(line):
+                dt = int(str(line).partition(':')[2].partition('\\')[0])
+                eventList[index]["date"] = dt                   
+                
+            elif 'DTSTAMP' in str(line):
+                ds = str(line).partition(':')[2].partition('\\')[0]
+                eventList[index]["date_stamp"] = ds
+
+            elif 'SUMMARY' in str(line):
+                smry = str(line).partition(':')[2].partition('\\')[0]
+                eventList[index]["summary"] = smry                   
+
+            elif 'END:VEVENT' in str(line):
+                index += 1
+            
+
+    return eventList
+
+
+
+# Comapares dates from event list to find upcoming events
+    
+def createFutureEventsList(dateNum, eventList):
+    futureEvents = [] # Initialize list for keeping future events
+    for item in eventList:
+        if item["date"] >= dateNum: # Check for all values greater than the date parameter
+            futureEvents.append(item) # Populate list with upcoming events
+        
+    return futureEvents
+
+# Creates a list of dates which corresponds to the list of future events
+
+def createFutureEventsDateList(futureEvents):
+    dateList = [] # Initialize a corresponding date list so values can be compared
+    for event in futureEvents:
+        dateList.append(event["date"]) # Populate the date list with the corresponding dates
+    
+    return dateList
+
+# Finds the next event date and checks the future events list for matches
+
+def getItemIndices(dateList):
+    eventIndices = [] # Once found, the next event date's index position in the date list is stored,
+                      # the corresponding event(s) can then be found in the event list
+
+    nextEventDate = min(dateList) # Get the minimum value of the list i.e. the next collection date
+
+    for i in range(len(dateList)): # Check the date list to find matches for the the next event date
+        if dateList[i] == int(nextEventDate): # If a match is found, store the index position in a list
+            eventIndices.append(i) # The index or indices can then be used to reference the event list to extract the data
+            i += 1 # Increment i
+            
+    return eventIndices
+
+# Converts date number back to readable format for output
+
+def convertDateFormat(dateNum):
+    dateNum = str(dateNum)
+    year = dateNum[0:4]
+    month = dateNum[4:6]
+    day = dateNum[6:8]
+    newdate = day + "/" + month + "/" + year
+    return newdate    
+
+# Creates a display message for the user
+
+def createMessage(futureEventIndices, futureEvents):
+    message = ""
+    for i in range(len(futureEventIndices)):
+        date = convertDateFormat(futureEvents[futureEventIndices[i]]["date"])
+        message += "Next %(summary)s is "% futureEvents[futureEventIndices[i]] + date 
+    return message
+
+# Displays display message
+
+def displayMessage(message):
+    print(message)
+    
+    
+############################ End of function definitions
+
+    
+
+# Call function to parse file and create a list of dictionaries
+eventsList = createEventList(file)
+
+# Get the current date from user and convert it to an appropriate format for comparison
+date = input('To see the next collection date,\nenter the current date in format dd/mm/yyyy : ')
+
+# Call function to convert to date number
+dateNum = convertToDateNumber(date)
+
+# Call function to create list of future dates
+futureEvents = createFutureEventsList(dateNum, eventsList)
+
+# Call function to create list of comparable dates
+futureDates = createFutureEventsDateList(futureEvents)
+print(futureDates)
+
+# Call function to get index position of any events that fall on the next collection date
+futureEventsIndices = getItemIndices(futureDates)
+
+# Call function to create output message
+message = createMessage(futureEventsIndices, futureEvents)
+
+# Call function to display message
+displayMessage(message)
+
+
+
+
+
